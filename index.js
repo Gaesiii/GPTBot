@@ -2,7 +2,7 @@ require('dotenv/config');
 const { Client, GatewayIntentBits } = require('discord.js');
 const OpenAI = require('openai');
 const express = require('express');
-const axios = require('axios'); // cần thêm axios để tự ping Express server
+const axios = require('axios'); // dùng để gửi request Express
 
 // 🚀 Mở server Express để Render giữ app luôn sống
 const app = express();
@@ -118,25 +118,22 @@ client.on('messageCreate', async (message) => {
     }
 });
 
-// 🌀 Ping chính Express server mỗi 4 phút để giữ app không bị sleep
+// 🔄 Ping định kỳ để giữ server sống
 setInterval(async () => {
     try {
-        console.log('🌍 Ping chính Express...');
-        await axios.get(`http://localhost:${PORT}/`);
-    } catch (e) {
-        console.error('❌ Lỗi khi tự ping Express:', e.message);
+        console.log('🌍 Ping Express...');
+        await axios.get('https://discordbot-44s6.onrender.com');
+    } catch (err) {
+        console.error('⚠️ Lỗi ping Express:', err.message);
     }
-}, 4 * 60 * 1000); // mỗi 4 phút
 
-// 🔄 Ping OpenRouter mỗi 10 phút để giữ kết nối AI
-setInterval(async () => {
     try {
         console.log('🔄 Gửi ping tới OpenRouter...');
         await openai.chat.completions.create({
             model: 'meta-llama/llama-4-scout:free',
             messages: [
                 { role: 'system', content: 'ping giữ server sống' },
-                { role: 'user', content: 'hello bạn còn sống không?' }
+                { role: 'user', content: 'Bạn còn ở đó không?' }
             ]
         });
         console.log('✅ Ping OpenRouter thành công!');
