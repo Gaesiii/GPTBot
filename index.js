@@ -86,7 +86,7 @@ client.on('messageCreate', async (message) => {
     // Gọi API OpenRouter
     try {
         const response = await openai.chat.completions.create({
-            model: 'google/gemini-2.0-flash-exp:free',
+            model: 'meta-llama/llama-4-scout:free',
             messages: conversation,
         });
 
