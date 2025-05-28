@@ -3,19 +3,18 @@ const { Client, GatewayIntentBits } = require('discord.js');
 const OpenAI = require('openai');
 const express = require('express');
 
-// 🚀 Mở server Express để Render giữ app luôn sống
+// ⚙️ Khởi động web server giữ app sống
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
     res.send('Bot is running!');
 });
-
 app.listen(PORT, () => {
     console.log(`🌐 Web server running on port ${PORT}`);
 });
 
-// 🤖 Bot Discord
+// 🤖 Khởi tạo bot Discord
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -42,7 +41,6 @@ const MAX_DISCORD_MESSAGE_LENGTH = 2000;
 function splitMessage(content, maxLength = MAX_DISCORD_MESSAGE_LENGTH) {
     const parts = [];
     let current = '';
-
     for (const line of content.split('\n')) {
         if ((current + line).length > maxLength) {
             parts.push(current);
@@ -50,12 +48,11 @@ function splitMessage(content, maxLength = MAX_DISCORD_MESSAGE_LENGTH) {
         }
         current += line + '\n';
     }
-
     if (current) parts.push(current);
     return parts;
 }
 
-client.on('messageCreate', async (message) => {
+async function handleMessage(message) {
     if (message.author.bot) return;
     if (message.content.startsWith(IGNORE_PREFIX)) return;
     if (!CHANNELS.includes(message.channelId) && !message.mentions.users.has(client.user.id)) return;
@@ -64,35 +61,24 @@ client.on('messageCreate', async (message) => {
         message.channel.sendTyping();
     }, 10000);
 
-    let conversation = [];
-    conversation.push({
+    let conversation = [{
         role: 'system',
-        content: `
-        bạn tên là Hẹ Hẹ.
-        bạn là một chatbot thân thiện
-        `
-    });
+        content: `bạn tên là Hẹ Hẹ. bạn là một chatbot thân thiện`,
+    }];
 
-    const PrevMessages = await message.channel.messages.fetch({ limit: 10 });
-    PrevMessages.reverse();
-    PrevMessages.forEach(msg => {
-        if (msg.author.bot && msg.author.id !== client.user.id) return;
-        if (msg.content.startsWith(IGNORE_PREFIX)) return;
-        const username = msg.author.username.replace(/\s+/g, '_').replace(/[^\w\s]/gi, '');
-        if (msg.author.id === client.user.id) {
-            conversation.push({
-                role: 'assistant',
-                name: username,
-                content: msg.content,
-            });
-            return;
-        }
-        conversation.push({
-            role: 'user',
-            name: username,
-            content: msg.content,
+    try {
+        const PrevMessages = await message.channel.messages.fetch({ limit: 10 });
+        PrevMessages.reverse();
+        PrevMessages.forEach(msg => {
+            if (msg.author.bot && msg.author.id !== client.user.id) return;
+            if (msg.content.startsWith(IGNORE_PREFIX)) return;
+            const username = msg.author.username.replace(/\s+/g, '_').replace(/[^\w\s]/gi, '');
+            const role = msg.author.id === client.user.id ? 'assistant' : 'user';
+            conversation.push({ role, name: username, content: msg.content });
         });
-    });
+    } catch (err) {
+        console.error('⚠️ Không lấy được message cũ:', err.message);
+    }
 
     try {
         const response = await openai.chat.completions.create({
@@ -107,32 +93,47 @@ client.on('messageCreate', async (message) => {
                 await message.reply(chunk);
             }
         } else {
-            message.reply('❌ Không có phản hồi từ AI.');
+            await message.reply('❌ Không có phản hồi từ AI.');
         }
     } catch (error) {
         console.error('🚫 OpenAI Error:\n', error);
-        message.reply('❌ Thử lại sau tí đê , con AI trĩ rồi');
+        await message.reply('❌ Thử lại sau tí đê , con AI trĩ rồi');
     } finally {
         clearInterval(sendTypingInterval);
     }
-});
+}
 
-// 🔄 Gửi request "ping" đến OpenRouter mỗi 15 phút để giữ app sống
-setInterval(async () => {
-    try {
-        console.log('🛠️ Heartbeat: Gửi ping đến OpenRouter...');
-        await openai.chat.completions.create({
-            model: 'meta-llama/llama-4-scout:free',
-            messages: [
-                { role: 'system', content: 'ping giữ server sống' },
-                { role: 'user', content: 'hi' }
-            ]
-        });
-        console.log('✅ Ping thành công!');
-    } catch (err) {
-        console.error('⚠️ Lỗi khi gửi ping giữ server:', err.message);
-    }
-}, 15 * 60 * 1000); // mỗi 15 phút
+// Lắng nghe tin nhắn thật từ Discord
+client.on('messageCreate', handleMessage);
 
-// 🔐 Đăng nhập bot
+// 🔄 Giả lập tin nhắn mỗi 10 phút để giữ server sống
+setInterval(() => {
+    const fakeMessage = {
+        author: {
+            bot: false,
+            id: '1234567890',
+            username: 'keepalive_user',
+        },
+        content: 'Bot ơi, bạn còn sống không?',
+        channelId: CHANNELS[0],
+        channel: {
+            id: CHANNELS[0],
+            sendTyping: () => {},
+            messages: {
+                fetch: async () => [],
+            },
+        },
+        mentions: {
+            users: {
+                has: (id) => id === client.user.id,
+            }
+        },
+        reply: async () => {},
+    };
+
+    console.log('🔁 Gửi tin nhắn giả lập giữ bot sống...');
+    handleMessage(fakeMessage);
+}, 10 * 60 * 1000); // 10 phút
+
+// 🔐 Đăng nhập
 client.login(process.env.TOKEN);
