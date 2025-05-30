@@ -2,9 +2,8 @@ require('dotenv/config');
 const { Client, GatewayIntentBits } = require('discord.js');
 const OpenAI = require('openai');
 const express = require('express');
-const axios = require('axios'); // dùng để gửi request Express
+const axios = require('axios');
 
-// 🚀 Mở server Express để Render giữ app luôn sống
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -16,13 +15,13 @@ app.listen(PORT, () => {
     console.log(`🌐 Web server running on port ${PORT}`);
 });
 
-// 🤖 Bot Discord
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.MessageContent
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildVoiceStates // thêm intent để xử lý voice
     ],
 });
 
@@ -77,13 +76,13 @@ client.on('messageCreate', async (message) => {
         nếu có ai hỏi check công thì gửi họ link này : https://check-cong-lms.vercel.app/
         Nếu có ai hỏi về link trial robot thì gửi họ link : https://instructions.online/?id=4094-vex-go-codebase
         Nếu có ai hỏi về trang LMS của mindx thì gửi họ link : https://lms.mindx.edu.vn/
-        Nếu có ai hỏi link trang CMS, link tài nguyên của các bộ môn , hay hỏi về tài nguyên  thì gửi họ link : https://mindxcom-my.sharepoint.com/
+        Nếu có ai hỏi link trang CMS, link tài nguyên của các bộ môn , hay hỏi về tài nguyên  thì gửi họ link : https://mindxcom-my.sharepoint.com/personal/rdk12_drive_mindx_com_vn/_layouts/15/onedrive.aspx
         không gửi những link khác ngoài những link đã liệt kê ở trên ví dụ không gửi link : WordPress: https://wordpress.org/,
         Joomla: https://joomla.org/,
         Drupal: https://drupal.org/,
         Shopify: https://www.shopify.com/,
         Wix: https://www.wix.com/.
-        nếu có ai hỏi về link của các bộ môn thì gửi họ link : https://mindxcom-my.sharepoint.com/
+        nếu có ai hỏi về link của các bộ môn thì gửi họ link : https://mindxcom-my.sharepoint.com/personal/rdk12_drive_mindx_com_vn/_layouts/15/onedrive.aspx
         nhưng nếu có ai hỏi về link nhạc thì cứ gửi họ link nhạc nếu có ở youtube và chỉ ở youtube thôi nhé.
         nếu có ai hỏi gì đó mà không có thông tin cứ trả lời vui vui 
         Ví dụ: có người hỏi sao MU thua hoài thì đừng trả lời là không có thông tin mà cứ trả lời đại như tại MU ngu quá, hay do đó là nội tại ẩn của MU.
@@ -115,6 +114,50 @@ client.on('messageCreate', async (message) => {
     });
 
     try {
+        // 🪩 Auto join voice và gửi lệnh m!p nếu có yêu cầu phát nhạc
+        const lowerContent = message.content.toLowerCase();
+        if (
+            lowerContent.includes('mở nhạc') ||
+            lowerContent.includes('phát nhạc') ||
+            lowerContent.includes('chơi bài') ||
+            lowerContent.startsWith('m!p ')
+        ) {
+            const voiceChannelId = '1376792649524187169';
+            const voiceChannel = await message.guild.channels.fetch(voiceChannelId);
+
+            if (voiceChannel && voiceChannel.isVoiceBased()) {
+                try {
+                    const connection = await voiceChannel.join?.();
+                    if (!connection) {
+                        message.channel.send('❌ Bot không thể join voice channel!');
+                    }
+
+                    let songName = message.content;
+                    if (!songName.startsWith('m!p')) {
+                        const match = message.content.match(/(?:mở nhạc|phát nhạc|chơi bài)\s+(.+)/i);
+                        if (match) songName = `m!p ${match[1]}`;
+                        else songName = 'm!p sóng gió';
+                    }
+
+                    await message.channel.send(songName);
+
+                    setTimeout(() => {
+                        try {
+                            connection?.disconnect?.();
+                            console.log('📤 Đã rời kênh thoại sau khi phát nhạc');
+                        } catch (e) {
+                            console.error('🚫 Không thể rời voice:', e);
+                        }
+                    }, 5000);
+                } catch (err) {
+                    console.error('🚫 Không thể vào kênh thoại:', err);
+                    message.channel.send('❌ Không thể vào kênh thoại để phát nhạc!');
+                }
+            } else {
+                message.channel.send('❌ Không tìm thấy kênh thoại!');
+            }
+        }
+
         const response = await openai.chat.completions.create({
             model: 'meta-llama/llama-4-scout:free',
             messages: conversation,
@@ -159,7 +202,6 @@ setInterval(async () => {
     } catch (err) {
         console.error('⚠️ Lỗi ping OpenRouter:', err.message);
     }
-}, 10 * 60 * 1000); // mỗi 10 phút
+}, 10 * 60 * 1000);
 
-// 🔐 Đăng nhập bot
 client.login(process.env.TOKEN);
