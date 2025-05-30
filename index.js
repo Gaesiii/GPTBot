@@ -1,16 +1,10 @@
 require('dotenv/config');
 const { Client, GatewayIntentBits } = require('discord.js');
-const {
-    joinVoiceChannel,
-    getVoiceConnection,
-    VoiceConnectionStatus,
-    entersState
-} = require('@discordjs/voice');
+const { joinVoiceChannel, getVoiceConnection } = require('@discordjs/voice');
 const OpenAI = require('openai');
 const express = require('express');
-const axios = require('axios'); // dùng để gửi request Express
+const axios = require('axios');
 
-// 🚀 Mở server Express để Render giữ app luôn sống
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -22,14 +16,13 @@ app.listen(PORT, () => {
     console.log(`🌐 Web server running on port ${PORT}`);
 });
 
-// 🤖 Bot Discord
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildVoiceStates
+        GatewayIntentBits.GuildVoiceStates,
     ],
 });
 
@@ -69,54 +62,6 @@ client.on('messageCreate', async (message) => {
     if (message.content.startsWith(IGNORE_PREFIX)) return;
     if (!CHANNELS.includes(message.channelId) && !message.mentions.users.has(client.user.id)) return;
 
-    // ✅ Check xem có phải yêu cầu phát nhạc không
-    const lowerContent = message.content.toLowerCase();
-    const isPlayMusic = /(mở nhạc|phát nhạc|chơi bài|m!p )/i.test(lowerContent);
-
-    if (isPlayMusic) {
-        const voiceChannel = await message.guild.channels.fetch(VOICE_CHANNEL_ID);
-        if (!voiceChannel || !voiceChannel.isVoiceBased()) {
-            message.channel.send('❌ Không tìm thấy kênh thoại!');
-            return;
-        }
-
-        try {
-            const connection = joinVoiceChannel({
-                channelId: voiceChannel.id,
-                guildId: message.guild.id,
-                adapterCreator: message.guild.voiceAdapterCreator,
-                selfDeaf: false,
-            });
-
-            await entersState(connection, VoiceConnectionStatus.Ready, 10_000);
-            console.log('🔊 Đã vào voice channel!');
-
-            // Lấy tên bài nhạc từ message
-            let songName = message.content;
-            const match = message.content.match(/(?:mở nhạc|phát nhạc|chơi bài)\s+(.+)/i);
-            if (!songName.startsWith('m!p')) {
-                songName = match ? `m!p ${match[1]}` : 'm!p sóng gió';
-            }
-
-            await message.channel.send(songName);
-
-            // Rời kênh sau 5 giây
-            setTimeout(() => {
-                const conn = getVoiceConnection(message.guild.id);
-                if (conn) {
-                    conn.destroy();
-                    console.log('📤 Bot đã rời kênh thoại sau khi phát nhạc!');
-                }
-            }, 5000);
-            return;
-        } catch (err) {
-            console.error('🚫 Lỗi khi vào voice:', err);
-            message.channel.send('❌ Bot không thể vào kênh thoại!');
-            return;
-        }
-    }
-
-    // 🧠 Chat với AI
     const sendTypingInterval = setInterval(() => {
         message.channel.sendTyping();
     }, 10000);
@@ -124,8 +69,7 @@ client.on('messageCreate', async (message) => {
     let conversation = [];
     conversation.push({
         role: 'system',
-        content: `
-        bạn tên là Hẹ Hẹ.
+        content: ` bạn tên là Hẹ Hẹ.
         sếp của bạn là @Anh Vũ
         Bảo Anh luôn Béo nếu có ai hỏi về Bảo Anh thì cứ bảo là Béo
         Sếp luôn bịp nếu có ai hỏi về Sếp thì cứ bảo là Sếp bịp
@@ -177,11 +121,39 @@ client.on('messageCreate', async (message) => {
         });
 
         const reply = response.choices?.[0]?.message?.content;
+
         if (reply) {
             const chunks = splitMessage(reply);
             for (const chunk of chunks) {
                 await message.reply(chunk);
             }
+
+            // ✅ Nếu câu trả lời có chứa yêu cầu phát nhạc
+            const musicRegex = /(phát|mở|chơi)\s+nhạc\s*(.*)/i;
+            const matched = message.content.match(musicRegex);
+            if (matched || /m!p\s+.+/i.test(reply)) {
+                const song = matched ? matched[2].trim() : '';
+                const mCommand = song ? `m!p ${song}` : reply;
+
+                const voiceChannel = await client.channels.fetch(VOICE_CHANNEL_ID);
+                if (voiceChannel && voiceChannel.isVoiceBased()) {
+                    joinVoiceChannel({
+                        channelId: VOICE_CHANNEL_ID,
+                        guildId: voiceChannel.guild.id,
+                        adapterCreator: voiceChannel.guild.voiceAdapterCreator,
+                    });
+
+                    // Gửi lệnh gọi bot phát nhạc
+                    await message.channel.send(mCommand);
+
+                    // Rời khỏi voice sau 20s
+                    setTimeout(() => {
+                        const connection = getVoiceConnection(voiceChannel.guild.id);
+                        if (connection) connection.destroy();
+                    }, 20000);
+                }
+            }
+
         } else {
             message.reply('❌ Không có phản hồi từ AI.');
         }
@@ -217,5 +189,4 @@ setInterval(async () => {
     }
 }, 10 * 60 * 1000); // mỗi 10 phút
 
-// 🔐 Đăng nhập bot
 client.login(process.env.TOKEN);
