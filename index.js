@@ -33,6 +33,7 @@ client.on('ready', () => {
 const IGNORE_PREFIX = '!';
 const CHANNELS = ['1377213523372802048'];
 const VOICE_CHANNEL_ID = '1376792649524187169';
+const WEBHOOK_URL = 'https://discord.com/api/webhooks/1377993619205787658/ZX3UC-remR1dftGVQb1HZRukikLzVu-llBRNOSD2xzbnYDMFMda8YFGcEOaxJkANl_Q6';
 
 const openai = new OpenAI({
     apiKey: process.env.OPENROUTER_API_KEY,
@@ -69,7 +70,7 @@ client.on('messageCreate', async (message) => {
     let conversation = [];
     conversation.push({
         role: 'system',
-        content: ` bạn tên là Hẹ Hẹ.
+        content: `bạn tên là Hẹ Hẹ.
         sếp của bạn là @Anh Vũ
         Bảo Anh luôn Béo nếu có ai hỏi về Bảo Anh thì cứ bảo là Béo
         Sếp luôn bịp nếu có ai hỏi về Sếp thì cứ bảo là Sếp bịp
@@ -91,8 +92,7 @@ client.on('messageCreate', async (message) => {
         nếu có ai hỏi gì đó mà không có thông tin thì cứ trả lời vui vui
         Nếu có ai kêu bạn mở nhạc gì đó , chơi bài gì đó , phát nhạc gì đó thì bạn sử dụng lệnh m!p + tên nhạc để chơi , ví dụ : m!p sóng gió, m!p bông hoa đẹp nhất, m!p anh ơi ở lại.
         lưu ý là chỉ sử dụng lệnh mà không thông báo gì thêm ngoài câu lệnh cả vì nó sẽ khiến lệnh bị lỗi .
-        Chỉ sử dụng câu lệnh thôi , ví dụ khi tôi nói chơi sóng gió thì bạn chỉ trả lời là : m!p sóng gió 
-        `
+        Chỉ sử dụng câu lệnh thôi , ví dụ khi tôi nói chơi sóng gió thì bạn chỉ trả lời là : m!p sóng gió `
     });
 
     const PrevMessages = await message.channel.messages.fetch({ limit: 10 });
@@ -130,7 +130,6 @@ client.on('messageCreate', async (message) => {
                 await message.reply(chunk);
             }
 
-            // ✅ Nếu câu trả lời có chứa yêu cầu phát nhạc
             const musicRegex = /(phát|mở|chơi)\s+nhạc\s*(.*)/i;
             const matched = message.content.match(musicRegex);
             if (matched || /m!p\s+.+/i.test(reply)) {
@@ -145,17 +144,19 @@ client.on('messageCreate', async (message) => {
                         adapterCreator: voiceChannel.guild.voiceAdapterCreator,
                     });
 
-                    // Gửi lệnh gọi bot phát nhạc
-                    await message.channel.send(mCommand);
+                    // Gửi lệnh bằng webhook
+                    await axios.post(WEBHOOK_URL, {
+                        content: mCommand,
+                        username: 'Hẹ Hẹ',
+                        avatar_url: 'https://i.imgur.com/AfFp7pu.png'
+                    });
 
-                    // Rời khỏi voice sau 20s
                     setTimeout(() => {
                         const connection = getVoiceConnection(voiceChannel.guild.id);
                         if (connection) connection.destroy();
                     }, 20000);
                 }
             }
-
         } else {
             message.reply('❌ Không có phản hồi từ AI.');
         }
@@ -167,17 +168,9 @@ client.on('messageCreate', async (message) => {
     }
 });
 
-// 🔄 Ping định kỳ để giữ server sống
 setInterval(async () => {
     try {
-        console.log('🌍 Ping Express...');
         await axios.get('https://discordbot-44s6.onrender.com');
-    } catch (err) {
-        console.error('⚠️ Lỗi ping Express:', err.message);
-    }
-
-    try {
-        console.log('🔄 Gửi ping tới OpenRouter...');
         await openai.chat.completions.create({
             model: 'meta-llama/llama-4-scout:free',
             messages: [
@@ -185,10 +178,9 @@ setInterval(async () => {
                 { role: 'user', content: 'Bạn còn ở đó không?' }
             ]
         });
-        console.log('✅ Ping OpenRouter thành công!');
     } catch (err) {
-        console.error('⚠️ Lỗi ping OpenRouter:', err.message);
+        console.error('⚠️ Lỗi ping:', err.message);
     }
-}, 10 * 60 * 1000); // mỗi 10 phút
+}, 10 * 60 * 1000);
 
 client.login(process.env.TOKEN);
