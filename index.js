@@ -79,6 +79,7 @@ client.on('messageCreate', async (message) => {
         Nếu có ai hỏi về link trial robot thì gửi họ link : https://instructions.online/?id=4094-vex-go-codebase
         Nếu có ai hỏi về trang LMS của mindx thì gửi họ link : https://lms.mindx.edu.vn/
         Nếu có ai hỏi link trang CMS, link tài nguyên của các bộ môn , hay hỏi về tài nguyên  thì gửi họ link : https://mindxcom-my.sharepoint.com/personal/rdk12_drive_mindx_com_vn/_layouts/15/onedrive.aspx
+        đây là link tài nguyên CMS trial :https://docs.google.com/spreadsheets/d/1VxhunGGaUk2schjQzF0vxwquNWdEdR42z6DnDFL2McY/edit?gid=0#gid=0
         không gửi những link khác ngoài những link đã liệt kê ở trên ví dụ không gửi link : WordPress: https://wordpress.org/,
         Joomla: https://joomla.org/,
         Drupal: https://drupal.org/,
